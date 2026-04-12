@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <string>
 #include <sys/stat.h>
 
 extern "C" {
@@ -15,6 +16,7 @@ extern "C" {
 
 struct SetupData {
     uint64_t inode;
+    pid_t pid;
 };
 
 static volatile bool exiting = false;
@@ -162,9 +164,12 @@ struct ring_buffer * get_msg_ring_buffer(
 
 SetupData get_setup_data() {
     SetupData data;
+    data.pid = getpid();
+    std::cout << "Pid: " << data.pid << std::endl;
 
     struct stat sb;
-    if (stat("/proc/629594", &sb) == -1) {
+    const std::string pid_folder = "/proc/" + std::to_string(data.pid);
+    if (stat(pid_folder.c_str(), &sb) == -1) {
         perror("stat");
         exit(1);
     }
