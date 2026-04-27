@@ -21,5 +21,6 @@ struct conn_info {
 
 #define IOC_MAGIC 't'
 #define IOCTL_SEND_DATA _IOW(IOC_MAGIC, 1, struct conn_info)
+#define DEV_NAME "conn_dev"
 
 #endif

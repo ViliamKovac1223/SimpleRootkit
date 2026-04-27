@@ -99,7 +99,7 @@ static int create_chr_dev(void) {
     }
 
     // Create the device node (appears in /dev/task_dev)
-    if (IS_ERR(device_create(conn_class, NULL, dev_num, NULL, "conn_dev"))) {
+    if (IS_ERR(device_create(conn_class, NULL, dev_num, NULL, DEV_NAME))) {
         class_destroy(conn_class);
         cdev_del(&conn_cdev);
         unregister_chrdev_region(dev_num, 1);
