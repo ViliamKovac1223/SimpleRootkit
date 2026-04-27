@@ -50,7 +50,7 @@ public:
     /**
      * @brief Get current data that are loaded in module, nullopt if no data was loaded in
      */
-    std::optional<conn_info> getData();
+    std::optional<conn_info> getData() const;
 };
 
 }

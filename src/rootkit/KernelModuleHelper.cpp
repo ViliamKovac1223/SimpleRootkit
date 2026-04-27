@@ -94,6 +94,6 @@ bool rootkit::KernelModuleHelper::setData(const conn_info& data) {
     return true;
 }
 
-std::optional<conn_info> rootkit::KernelModuleHelper::getData() {
+std::optional<conn_info> rootkit::KernelModuleHelper::getData() const {
     return data;
 }
