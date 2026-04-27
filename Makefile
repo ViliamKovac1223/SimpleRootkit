@@ -1,24 +1,45 @@
-CC = clang
+GCC = gcc
+CC = $(GCC)
 CXX = clang++
-BIN_FOLDER = bin
-SRC_FOLDER = src
+CLANG = clang
 
-VMLINUX_H = $(SRC_FOLDER)/vmlinux.h
+BIN = bin
+SRC = src
+INC = include
+MODULE = $(SRC)/module
+EBPF = $(SRC)/ebpf
 
-all: $(VMLINUX_H) kernel user
+VMLINUX_H = $(INC)/vmlinux.h
 
-kernel: $(BIN_FOLDER)
-	$(CC) -O2 -g -target bpf -c $(SRC_FOLDER)/rootkit.c -o $(BIN_FOLDER)/rootkit.bpf.o
-	sudo bpftool gen skeleton $(BIN_FOLDER)/rootkit.bpf.o > $(SRC_FOLDER)/rootkit.skel.h
+MODULE_NAME := rnet
+KDIR := /lib/modules/$(shell uname -r)/build
+obj-m := $(MODULE_NAME).o
+# Include headers for kernel_module compilation
+ccflags-y := -I$(PWD)/$(INC)
 
-user: $(BIN_FOLDER)
-	$(CXX) -lbpf $(SRC_FOLDER)/main.cpp -o $(BIN_FOLDER)/main
+all: $(VMLINUX_H) kernel_ebpf user kernel_module
+
+kernel_module: $(BIN)
+	cp Makefile ./$(MODULE)
+	$(MAKE) -C $(KDIR) M=$(PWD)/$(MODULE) modules
+	# Copy .ko file
+	mv $(PWD)/$(MODULE)/$(MODULE_NAME).ko $(PWD)/$(BIN)
+	# Clean after compilation
+	make -C $(KDIR) M=$(PWD)/$(MODULE) clean
+	rm ./$(MODULE)/Makefile
+
+kernel_ebpf: $(BIN)
+	$(CLANG) -I$(INC) -O2 -g -target bpf -c $(EBPF)/rootkit.c -o $(BIN)/rootkit.bpf.o
+	sudo bpftool gen skeleton $(BIN)/rootkit.bpf.o > $(INC)/rootkit.skel.h
+
+user: $(BIN)
+	$(CXX) -I$(INC) -lbpf $(SRC)/main.cpp -o $(BIN)/main
 
 $(VMLINUX_H):
 	sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > $@
 
 clean:
-	rm -rf $(BIN_FOLDER)/*
+	rm -rf $(BIN)/*
 
-$(BIN_FOLDER):
+$(BIN):
 	mkdir -p $@

