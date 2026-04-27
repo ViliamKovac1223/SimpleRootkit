@@ -7,6 +7,7 @@
 #define PROG_02 2
 
 #define MAX_FILENAME_LEN 32
+#define INODES_TO_HIDE_LEN 256
 
 struct event {
     unsigned long long inode;

