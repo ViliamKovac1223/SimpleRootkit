@@ -19,6 +19,8 @@ public:
     /**
      * @brief Load rootkit bpf (src/ebpf/rootkit) into the kernel
      * @param  inode_to_hide Inode that will be hidden in userspace
+     * @param rb_callback Callback function that will be called every time ring
+     * buffer receives data
      */
     RootkitBpfHelper(const uint64_t inode_to_hide,
         int (* rb_callback)(void *, void *, unsigned long));
