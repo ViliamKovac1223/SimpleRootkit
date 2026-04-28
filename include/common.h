@@ -8,6 +8,7 @@
 
 #define MAX_FILENAME_LEN 32
 #define INODES_TO_HIDE_LEN 256
+#define MAX_CONNECTIONS_TO_HIDE 256
 
 struct event {
     unsigned long long inode;

