@@ -54,7 +54,7 @@ user: $(BIN) $(MAIN_BIN)
 # Link
 $(MAIN_BIN): $(OBJS)
 	@echo "Linking"
-	$(CXX) -I$(INC) $(CXX_FLAGS) -lbpf -o $@ $^
+	$(CXX) -I$(INC) $(CXX_FLAGS) -lbpf -lyaml-cpp -o $@ $^
 
 # Compile rule for objects under build/ (preserve namespace path)
 $(BIN)/%.o: $(SRC)/%.cpp
