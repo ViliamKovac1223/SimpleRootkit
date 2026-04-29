@@ -1,0 +1,16 @@
+kernel_module_config:
+  # Path to the kernel module
+  path: ./bin/rnet.ko
+  name: rnet
+  # Ip addresses and ports to hide
+  ips_and_ports: 
+    # - ip: <example ip>
+    #   port: <example port>
+
+bpf_program_config:
+  # Additional inodes to hide
+  # inodes:
+    # - <additional_inodes>
+  hide_host: true
+  hide_payload: true
+  hide_config: true
