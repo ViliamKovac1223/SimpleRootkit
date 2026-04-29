@@ -13,13 +13,15 @@ EBPF = $(SRC)/ebpf
 
 # User space code consts
 USER_NAMESPACE = rootkit
+ISSUES_NAMESPACE = issues
 MAIN_BIN = $(BIN)/main
 
 # Sources
 MAIN_SRC = $(SRC)/main.cpp
 USER_NAMESPACE_SRCS = $(wildcard $(SRC)/$(USER_NAMESPACE)/*.cpp)
+ISSUES_NAMESPACE_SRCS = $(wildcard $(SRC)/$(USER_NAMESPACE)/$(ISSUES_NAMESPACE)/*.cpp)
 # Object files (only main and namespace sources)
-OBJS := $(patsubst $(SRC)/%.cpp,$(BIN)/%.o,$(MAIN_SRC) $(USER_NAMESPACE_SRCS))
+OBJS := $(patsubst $(SRC)/%.cpp,$(BIN)/%.o,$(MAIN_SRC) $(USER_NAMESPACE_SRCS) $(ISSUES_NAMESPACE_SRCS))
 # Ensure build subdirs exist
 $(shell mkdir -p $(BIN) $(BIN)/$(USER_NAMESPACE) 2>/dev/null || true)
 
