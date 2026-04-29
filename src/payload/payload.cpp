@@ -11,10 +11,10 @@ void payload_function();
 void signal_handler(int signum);
 
 int main(int argc, char ** argv) {
-    std::cout << "Hello from payload. PID: " << getpid() << std::endl;
-
     signal(SIGTERM, signal_handler);
     signal(SIGINT, signal_handler);
+
+    std::cout << "Hello from payload. PID: " << getpid() << std::endl;
 
     // Wait till signal to stop working
     while (!should_exit) {
@@ -25,8 +25,8 @@ int main(int argc, char ** argv) {
 }
 
 void payload_function(){
-    std::cout << "payload is runnig" << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    // std::cout << "payload is runnig" << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 void signal_handler(int signum) {
