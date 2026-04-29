@@ -6,6 +6,9 @@
 #include <vector>
 #include "common.h"
 #include "ConfigManager.hpp"
+#include "rootkit/issues/Error.hpp"
+#include "rootkit/issues/Warning.hpp"
+#include "rootkit/issues/Logger.hpp"
 
 # define init_module(mod, len, opts) syscall(__NR_init_module, mod, len, opts)
 # define delete_module(mod, flags) syscall(__NR_delete_module, mod, flags)
@@ -19,7 +22,8 @@ private:
     std::string module_name;
     std::string module_dev_name;
 
-    std::string loading_error;
+    issues::Error error;
+    issues::Warning warning;
     std::vector<conn_info> data;
 
 public:
@@ -29,7 +33,8 @@ public:
      * @param conf Configuration for this module
      */
     KernelModuleHelper(const KernelModuleConfig& conf,
-        const std::string& module_dev_name
+        const std::string& module_dev_name,
+        const issues::Logger& logger
     );
 
     /**

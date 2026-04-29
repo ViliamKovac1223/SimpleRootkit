@@ -2,9 +2,9 @@
 #include "common.h"
 #include "rootkit.skel.h"
 #include "rootkit/ConfigManager.hpp"
+#include "rootkit/issues/Issue.hpp"
 
 #include <cstring>
-#include <iostream>
 #include <format>
 #include <optional>
 
@@ -14,18 +14,18 @@ extern "C" {
 }
 
 rootkit::RootkitBpfHelper::RootkitBpfHelper(const RootkitBpfConfig& conf,
-    int (* rb_callback)(void *, void *, unsigned long)
+    int (* rb_callback)(void *, void *, unsigned long),
+    const issues::Logger& logger
 )
     :skel(nullptr),
     rb(nullptr),
     conf(conf),
-    error_msg("")
+    error(logger)
 {
     // Open the skeleton
     skel = rootkit_bpf__open();
     if (!skel) {
-        error_msg = "Failed to open BPF skeleton";
-        std::cerr << error_msg << std::endl;
+        error = "Failed to open BPF skeleton";
         return;
     }
 
@@ -37,8 +37,7 @@ rootkit::RootkitBpfHelper::RootkitBpfHelper(const RootkitBpfConfig& conf,
     // Load the program
     int err = rootkit_bpf__load(skel);
     if (err) {
-        error_msg = "Failed to load and verify BPF skeleton";
-        std::cerr << error_msg << std::endl;
+        error = "Failed to load and verify BPF skeleton";
         clean();
         return;
     }
@@ -48,8 +47,7 @@ rootkit::RootkitBpfHelper::RootkitBpfHelper(const RootkitBpfConfig& conf,
     // Attach to syscalls
     err = rootkit_bpf__attach(skel);
     if (err) {
-        error_msg = "Failed to attach BPF programs\n";
-        std::cerr << error_msg << std::endl;
+        error = "Failed to attach BPF programs\n";
         clean();
         return;
     }
@@ -67,16 +65,18 @@ rootkit::RootkitBpfHelper::~RootkitBpfHelper() {
 void rootkit::RootkitBpfHelper::rb_poll(int timeout) {
     int err = ring_buffer__poll(rb, timeout);
     if (err < 0) {
-        error_msg = std::format("perf_reader__poll error: {}", strerror(errno));
-        if (errno != EINTR) // Makes sure that no error message will be printed on exit event
-            std::cerr << error_msg << std::endl;
+        // This error indicates exit event,
+        // So this makes sure that no error message will be printed (registered)
+        // on exit event
+        if (errno != EINTR)
+            error = std::format("perf_reader__poll error: {}", strerror(errno));
         clean();
     }
 }
 
 std::optional<std::string> rootkit::RootkitBpfHelper::status() const {
-    if (!error_msg.empty())
-        return error_msg;
+    if (!error.empty())
+        return error.get_message();
 
     // Safe check, this should never execute
     if (skel == nullptr && rb == nullptr)
@@ -109,8 +109,7 @@ void rootkit::RootkitBpfHelper::setup_msg_ring_buffer(
 ) {
     int map_fd = bpf_map__fd(map);
     if (map_fd < 0) {
-        error_msg = "failed to get map fd";
-        std::cerr << error_msg << std::endl;
+        error = "failed to get map fd";
         clean();
         return;
     }
@@ -118,8 +117,7 @@ void rootkit::RootkitBpfHelper::setup_msg_ring_buffer(
     // Create perf reader using libbpf helper
     rb = ring_buffer__new(map_fd, callback, NULL, NULL);
     if (!rb) {
-        error_msg = "failed to create perf reader";
-        std::cerr << error_msg << std::endl;
+        error = "failed to create perf reader";
         clean();
         return;
     }
@@ -127,7 +125,7 @@ void rootkit::RootkitBpfHelper::setup_msg_ring_buffer(
 
 bool rootkit::RootkitBpfHelper::setup_volatile_consts() {
     if (this->conf.inodes.size() > INODES_TO_HIDE_LEN) {
-        error_msg = std::format(
+        error = std::format(
             "Maximum allowed inodes to hide is {}",
             INODES_TO_HIDE_LEN);
         return false;
@@ -173,9 +171,8 @@ void rootkit::RootkitBpfHelper::setup_arr_links() {
             BPF_ANY);
 
         if (ret == -1) {
-            error_msg = std::format("Failed to add program to prog array: {}", strerror(errno));
+            error = std::format("Failed to add program to prog array: {}", strerror(errno));
 
-            std::cerr <<  error_msg << std::endl;
             clean();
             return;
         }
