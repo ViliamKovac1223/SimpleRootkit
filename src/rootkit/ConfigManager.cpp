@@ -62,6 +62,8 @@ bool ConfigManager::read() {
         for (const auto& inode : config["bpf_program_config"]["inodes"])
             bpfConf.inodes.push_back(inode.as<uint64_t>());
 
+        // Load payload path
+        payloadConf.path = config["payload"]["path"].as<std::string>();
     } catch (YAML::Exception e) {
         std::cerr << "Error parsing YAML: " << e.what() << std::endl;
         return false;
@@ -80,5 +82,11 @@ std::optional<KernelModuleConfig> ConfigManager::get_kernel_module_config() {
 std::optional<RootkitBpfConfig> ConfigManager::get_bpf_config() {
     if (is_config_ready)
         return bpfConf;
+    return std::nullopt;
+}
+
+std::optional<PayloadConfig> ConfigManager::get_payload_config() {
+    if (is_config_ready)
+        return payloadConf;
     return std::nullopt;
 }

