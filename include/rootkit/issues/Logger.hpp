@@ -7,6 +7,8 @@ namespace rootkit::issues {
 
 class Logger {
 public:
+    virtual ~Logger() = default;
+
     /**
      * @brief Prints out error message
      */
