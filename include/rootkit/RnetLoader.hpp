@@ -15,9 +15,9 @@
 
 namespace rootkit {
 
-class KernelModuleHelper {
+class RnetLoader {
 private:
-    KernelModuleConfig conf;
+    RnetConfig conf;
     std::string module_path;
     std::string module_name;
     std::string module_dev_name;
@@ -28,11 +28,11 @@ private:
 
 public:
     /**
-     * @brief Load a kernel module. And send data from configuration to the
+     * @brief Load a rnet kernelo module. And send data from configuration to the
      * module.
      * @param conf Configuration for this module
      */
-    KernelModuleHelper(const KernelModuleConfig& conf,
+    RnetLoader(const RnetConfig& conf,
         const std::string& module_dev_name,
         const issues::Logger& logger
     );
@@ -40,7 +40,7 @@ public:
     /**
      * @brief Unload a kernel module
     */
-    ~KernelModuleHelper();
+    ~RnetLoader();
 
     /**
      * @brief Returns kernel module status

