@@ -29,8 +29,9 @@ $(shell mkdir -p $(BIN) $(BIN)/$(USER_NAMESPACE) 2>/dev/null || true)
 VMLINUX_H = $(INC)/vmlinux.h
 
 MODULE_NAME := rnet
+LOADER_MODULE_NAME = rt
 KDIR := /lib/modules/$(shell uname -r)/build
-obj-m := $(MODULE_NAME).o
+obj-m := $(MODULE_NAME).o $(LOADER_MODULE_NAME).o
 # Include headers for kernel_module compilation
 ccflags-y := -I$(PWD)/$(INC)
 
@@ -39,11 +40,18 @@ PAYLOAD_TARGET = payload
 
 all: $(VMLINUX_H) kernel_ebpf user kernel_module payload
 
+uninstall:
+	sudo rm /etc/modules-load.d/rt.conf
+	sudo rm /etc/modprobe.d/rt.conf
+	sudo rm /lib/modules/$(uname -r)/rt.ko
+
 kernel_module: $(BIN)
 	cp Makefile ./$(MODULE)
+	# Compile modules
 	$(MAKE) -C $(KDIR) M=$(PWD)/$(MODULE) modules
-	# Copy .ko file
+	# Copy .ko files
 	mv $(PWD)/$(MODULE)/$(MODULE_NAME).ko $(PWD)/$(BIN)
+	mv $(PWD)/$(MODULE)/$(LOADER_MODULE_NAME).ko $(PWD)/$(BIN)
 	# Clean after compilation
 	make -C $(KDIR) M=$(PWD)/$(MODULE) clean
 	rm ./$(MODULE)/Makefile
