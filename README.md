@@ -47,7 +47,7 @@ this is to rewrite this to the kernel module. But this project started because
 I wanted to learn about ebpf, so this solution would kinda defeat the purpose
 of this project.
 
-## Kernel Module
+## Rnet Module
 This project also have kernel module that hides network activity, this was
 originally planed to be done in ebpf instead of a kernel module, but I found
 this impossible because I needed it to rewrite a return value of syscall. So
@@ -58,6 +58,12 @@ shows tcp netwok activity. When it finds network connection match between ip
 address and port that needs to be hidden. We change return value of this syscall
 to ``EACCES`` that represents an error that will make program like ``netstat``
 to ignore this connection, and not show it to the user.
+
+## Persistence Module
+This kernel module was designed to be running at the boot time, and start up
+the rootkit itself. Once loaded, module cannot be unloaded by standard means.
+This module provides persistence to this rootkit, since it loads at bootime,
+and starts rest of the rootkit.
 
 ## Payload
 Because this project is educational, the payload here is really just a
@@ -71,14 +77,14 @@ connections to hide, and by providing inodes you can hide more files, other
 than what rootkit hides by default.
 
 ```
-kernel_module_config:
+rnet:
   # Path to the kernel module
   path: ./bin/rnet.ko
   name: rnet
   # Ip addresses and ports to hide
   ips_and_ports: 
     - ip: <example ip>
-      port: <example port>
+    - port: <example port>
 
 bpf_program_config:
   # Additional inodes to hide
@@ -87,6 +93,11 @@ bpf_program_config:
   hide_host: true
   hide_payload: true
   hide_config: true
+
+rt:
+  module_path: ./bin/rt.ko
+  module_name: rt
+  program_path: ./bin/main
 
 payload:
   path: ./bin/payload
@@ -164,6 +175,32 @@ vagrant halt
 # This will delete a VM, and next bootup you will have to install all dependencies again
 vagrant destroy
 ```
+
+## Running, Installing, and Uninstalling
+This project can be installed with persistence to the machine. Once installed
+the rootkit gets running during boot time and it will remain running. To
+uninstall it you have to delete its system configuration and kernel module file
+from file system. After that you have to reboot system for changes to be
+active, since rootkit module cannot be unloaded (by design). But for testing
+and playing around I only recommend to run this rootkit without installing it,
+and only in virtual machine. Bellow you can list of commands for running,
+installing, and uninstalling.
+
+```
+sudo ./bin/main --run
+sudo ./bin/main --install
+make uninstall
+```
+
+Here is a list of manual commands for uninstalling.
+```
+sudo rm /etc/modules-load.d/rt.conf
+sudo rm /etc/modprobe.d/rt.conf
+sudo rm /lib/modules/$(uname -r)/rt.ko
+```
+
+``main`` binary also supports arguments for ``--cwd=/path/rootkit/folder``.
+This option allows you to set current working directory of the running rootkit.
 
 # Disclaimer
 This software and code is not intended to be used in a harmful way, and I do
