@@ -73,10 +73,10 @@ placeholder program that doesn't do much.
 Bellow we can see the example configuration for this rootkit. At the start the
 rootkit reads this file, and behave accordingly. Configuration file is mostly
 self-explanatory. Interesting things that can be configured here, are network
-connections to hide, and by providing inodes you can hide more files, other
+connections to hide, and by providing file paths you can hide more files, other
 than what rootkit hides by default.
 
-```
+```yaml
 rnet:
   # Path to the kernel module
   path: ./bin/rnet.ko
@@ -87,9 +87,9 @@ rnet:
     - port: <example port>
 
 bpf_program_config:
-  # Additional inodes to hide
-  # inodes:
-    # - <additional_inodes>
+  # Additional files to hide
+  files_to_hide:
+    - ./bin/main
   hide_host: true
   hide_payload: true
   hide_config: true

